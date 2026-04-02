@@ -138,7 +138,6 @@ function getTty(): string | null {
 let myId: PeerId | null = null;
 let myCwd = process.cwd();
 let myGitRoot: string | null = null;
-let channelEnabled = false;
 
 // --- MCP Server ---
 
@@ -403,7 +402,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 // --- Polling loop for inbound messages ---
 
 async function pollAndPushMessages() {
-  if (!myId || !channelEnabled) return;
+  if (!myId) return;
 
   try {
     const result = await brokerFetch<PollMessagesResponse>("/poll-messages", { id: myId });
@@ -517,20 +516,10 @@ async function main() {
   await mcp.connect(new StdioServerTransport());
   log("MCP connected");
 
-  // 6. Detect channel support from client capabilities
-  const clientCaps = mcp.getClientCapabilities();
-  const experimentalCaps = clientCaps?.experimental as Record<string, unknown> | undefined;
-  if (experimentalCaps?.["claude/channel"]) {
-    channelEnabled = true;
-    log("Channel notifications enabled (client supports claude/channel)");
-  } else {
-    log("Channel notifications disabled — use check_messages for polling fallback");
-  }
-
-  // 7. Start polling for inbound messages (only active when channelEnabled)
+  // 6. Start polling for inbound messages
   const pollTimer = setInterval(pollAndPushMessages, POLL_INTERVAL_MS);
 
-  // 8. Start heartbeat
+  // 7. Start heartbeat
   const heartbeatTimer = setInterval(async () => {
     if (myId) {
       try {
@@ -541,7 +530,7 @@ async function main() {
     }
   }, HEARTBEAT_INTERVAL_MS);
 
-  // 9. Clean up on exit
+  // 8. Clean up on exit
   const cleanup = async () => {
     clearInterval(pollTimer);
     clearInterval(heartbeatTimer);
